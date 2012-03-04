@@ -2,8 +2,21 @@ grammar com.ghvandoorn.xtext.statemachine.Dsl with org.eclipse.xtext.common.Term
 
 generate dsl "http://www.ghvandoorn.com/xtext/statemachine/Dsl"
 
-Model:
-	greetings+=Greeting*;
-	
-Greeting:
-	'Hello' name=ID '!';
+StateMachine:
+	{StateMachine}
+	('events'
+		(events+=Event)+
+	'end')?
+	'initial_state' initialState=[State]
+	states+=State*;
+
+State:
+	'state' name=ID
+		transitions+=Transition*
+	'end';
+
+Transition:
+	event=[Event] '=>' state=[State];
+
+Event:
+	name=ID;
