@@ -6,10 +6,78 @@ package com.ghvandoorn.xtext.statemachine.generator
 import org.eclipse.emf.ecore.resource.Resource
 import org.eclipse.xtext.generator.IGenerator
 import org.eclipse.xtext.generator.IFileSystemAccess
+import java.io.File
+import com.ghvandoorn.xtext.statemachine.dsl.StateMachine
+import com.ghvandoorn.xtext.statemachine.dsl.Event
+import com.ghvandoorn.xtext.statemachine.dsl.State
+import com.ghvandoorn.xtext.statemachine.dsl.Transition
 
 class DslGenerator implements IGenerator {
 	
+	String filename
+
 	override void doGenerate(Resource resource, IFileSystemAccess fsa) {
-		//TODO implement me
+		filename = resource.getFileNameWithoutExtension
+		for(m: resource.allContents.filter(typeof(StateMachine)).toList) {
+			fsa.generateFile(filename + ".h", m.compile(resource))
+		}
 	}
+
+	def getFileNameWithoutExtension(Resource resource) {
+		var file = new File(resource.URI.path)
+		var fullPath = file.name
+		var dot = fullPath.lastIndexOf(".")
+		return fullPath.substring(0, dot)
+	}
+	def compile(StateMachine machine, Resource resource)'''
+		#ifndef __«filename.toUpperCase»_STATE_MACHINE__
+		#define __«filename.toUpperCase»_STATE_MACHINE__
+		#include <boost/msm/back/state_machine.hpp>
+		#include <boost/msm/front/state_machine_def.hpp>
+		#include <boost/msm/front/functor_row.hpp>
+
+		namespace msm = boost::msm;
+		namespace mpl = boost::mpl;
+
+		«FOR event : machine.events»
+			«event.compile»
+		«ENDFOR»
+		struct state_machine_ : public msm::front::state_machine_def<state_machine_> {
+			«FOR state : machine.states»
+				«state.compile»
+			«ENDFOR»
+			«machine.defineStartState»
+			struct transition_table : mpl::vector<
+				«FOR state : machine.states»
+					«FOR transition : state.transitions»
+						«transition.compile(state, transition == machine.states.last.transitions.last)»
+					«ENDFOR»
+				«ENDFOR»
+			> {};
+			template <class FSM,class Event>
+			void no_transition(Event const& e, FSM&,int state) {
+				std::cout << "no transition from state " << state
+					<< " on event " << typeid(e).name() << std::endl;
+			}
+		};
+		typedef msm::back::state_machine<state_machine_> «filename.toLowerCase.toFirstUpper»StateMachine;
+		#endif
+	'''
+	def compile(Event event)'''
+		struct «event.name» {};
+	'''
+	def compile(State state)'''
+		struct «state.name» : public msm::front::state<> {
+			template <class Event,class FSM>
+			void on_entry(Event const&, FSM& ) {std::cout << "entering: «state.name»" << std::endl;}
+			template <class Event,class FSM>
+			void on_exit(Event const&, FSM& ) {std::cout << "leaving: «state.name»" << std::endl;}
+		};
+	'''
+	def compile(Transition transition, State originatingState, Boolean last)'''
+		msm::front::Row < «originatingState.name», «transition.event.name», «transition.state.name»,  msm::front::none, msm::front::none >«IF !last»,«ENDIF»
+	'''
+	def defineStartState(StateMachine machine)'''
+		typedef «machine.initialState.name» initial_state;
+	'''
 }
