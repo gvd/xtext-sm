@@ -1,0 +1,9 @@
+grammar com.ghvandoorn.xtext.statemachine.Dsl with org.eclipse.xtext.common.Terminals
+
+generate dsl "http://www.ghvandoorn.com/xtext/statemachine/Dsl"
+
+Model:
+	greetings+=Greeting*;
+	
+Greeting:
+	'Hello' name=ID '!';
